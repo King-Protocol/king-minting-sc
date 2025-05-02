@@ -1,0 +1,4 @@
+{
+    "detectors_to_exclude": "naming-convention,solc-version,similar-names,timestamp",
+    "filter_paths": "node_modules/|contracts/interfaces/|contracts/mocks/|contracts/vendor/|hardhat/|@openzeppelin/|@chainlink/"
+}

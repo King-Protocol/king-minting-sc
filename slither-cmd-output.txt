@@ -1,0 +1,29 @@
+'npx hardhat clean' running (wd: /Users/anik/Developer/king-retail-sc)
+'npx hardhat clean --global' running (wd: /Users/anik/Developer/king-retail-sc)
+'npx hardhat compile --force' running (wd: /Users/anik/Developer/king-retail-sc)
+INFO:Detectors:
+RetailCore.depositMultiple(address[],uint256[]) (contracts/RetailCore.sol#142-183) uses a dangerous strict equality:
+	- netKingAmount == 0 (contracts/RetailCore.sol#179)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#dangerous-strict-equalities
+INFO:Detectors:
+RetailCore.previewDepositMultiple(address[],uint256[]).kingMintedGross (contracts/RetailCore.sol#515) is a local variable never initialized
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#uninitialized-local-variables
+INFO:Detectors:
+RetailCore.unwrap(uint256) (contracts/RetailCore.sol#189-230) ignores return value by (None,amountsAfter) = kingContract.totalAssets() (contracts/RetailCore.sol#213)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#unused-return
+INFO:Detectors:
+RetailCore.depositMultiple(address[],uint256[]) (contracts/RetailCore.sol#142-183) has external calls inside a loop: ! kingContract.isTokenWhitelisted(tokenAddress) (contracts/RetailCore.sol#158)
+RetailCore.getDepositableTokens() (contracts/RetailCore.sol#622-641) has external calls inside a loop: kingContract.isTokenWhitelisted(tokenAddress) && ! tokenPaused[tokenAddress] (contracts/RetailCore.sol#632)
+RetailCore.getAllInfo() (contracts/RetailCore.sol#686-709) has external calls inside a loop: prices[i] = tokenAmountToUsd(tokens[i],10 ** IERC20Metadata(tokens[i]).decimals()) (contracts/RetailCore.sol#707)
+RetailCore._tokenAmountToUsd(address,uint256) (contracts/RetailCore.sol#416-432) has external calls inside a loop: tokenPriceInEth = priceProvider.getPriceInEth(token) (contracts/RetailCore.sol#419)
+RetailCore._tokenAmountToUsd(address,uint256) (contracts/RetailCore.sol#416-432) has external calls inside a loop: tokenDecimals = IERC20Metadata(token).decimals() (contracts/RetailCore.sol#422)
+RetailCore._ethToUsd(uint256) (contracts/RetailCore.sol#439-452) has external calls inside a loop: (price,decimals) = priceProvider.getEthUsdPrice() (contracts/RetailCore.sol#442)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation/#calls-inside-a-loop
+INFO:Detectors:
+Reentrancy in RetailCore.depositMultiple(address[],uint256[]) (contracts/RetailCore.sol#142-183):
+	External calls:
+	- kingContract.deposit(tokens,amounts,address(this)) (contracts/RetailCore.sol#170)
+	State variables written after the call(s):
+	- accruedFees += feeAmount (contracts/RetailCore.sol#177)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities-2
+INFO:Slither:. analyzed (16 contracts with 91 detectors), 10 result(s) found

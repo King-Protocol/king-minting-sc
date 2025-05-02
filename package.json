@@ -1,0 +1,93 @@
+{
+    "name": "king",
+    "version": "1.0.0",
+    "description": "king protocol",
+    "private": true,
+    "scripts": {
+        "gen:docs": "rm -rf docs && npx hardhat docgen",
+        "gen:abi": "rm -rf abi && npx hardhat export-abi",
+        "coverage": "npm run clean:cov && SERIAL=true npx hardhat coverage",
+        "slither": "npm run clean:build && slither .",
+        "test": "npx hardhat test",
+        "clean": "bash scripts/commands/clean.sh",
+        "lint": "npm run lint:ts && npm run lint:sol",
+        "lint:fix": "npm run lint:ts:fix && npm run lint:sol:fix",
+        "compile": "npx hardhat compile",
+        "size": "npm run compile:force && npx hardhat size-contracts",
+        "test:fork": "FORKING=true npm test",
+        "test:gas": "REPORT_GAS=true SERIAL=true RUN_OPTIMIZER=true npm test",
+        "test:trace": "npm test -- --trace",
+        "test:trace:full": "npm test -- --fulltrace",
+        "test:check": "npm test -- --typecheck",
+        "test:gas:json": "REPORT_GAS_TO_FILE=json npm run test:gas",
+        "test:gas:md": "REPORT_GAS_TO_FILE=md npm run test:gas",
+        "slither:md": "npm run clean:build && bash scripts/commands/slither.sh",
+        "compile:force": "npm run compile -- --force",
+        "clean:build": "bash scripts/commands/clean.sh build",
+        "clean:oz": "bash scripts/commands/clean.sh oz",
+        "clean:ignition": "bash scripts/commands/clean.sh ignition",
+        "clean:cov": "bash scripts/commands/clean.sh coverage",
+        "compile:4g": "npm run compile -- --max-memory 4096",
+        "coverage:4g": "NODE_OPTIONS=\"--max-old-space-size=4096\" npm run coverage",
+        "coverage:8g": "NODE_OPTIONS=\"--max-old-space-size=8192\" npm run coverage",
+        "lint:ts": "npx prettier --check \"**/*.{ts,js}\" && npx eslint .",
+        "lint:ts:fix": "npx prettier --write \"**/*.{ts,js}\" && npx eslint . --fix",
+        "lint:sol": "npx hardhat check && npx prettier --check \"contracts/**/*.sol\"",
+        "lint:sol:fix": "npx solhint --fix \"contracts/**/*.sol\" && npx prettier --write \"contracts/**/*.sol\"",
+        "prepare": "husky"
+    },
+    "engines": {
+        "node": ">=21.2.0 || >=20.11.0 <21.0.0",
+        "npm": ">=7.0.0"
+    },
+    "dependencies": {
+        "@openzeppelin/contracts": "5.2.0",
+        "@openzeppelin/contracts-upgradeable": "5.2.0",
+        "@prb/math": "^4.1.0"
+    },
+    "devDependencies": {
+        "@commitlint/cli": "19.6.1",
+        "@commitlint/config-conventional": "19.6.0",
+        "@eslint/compat": "1.2.4",
+        "@eslint/js": "9.17.0",
+        "@nomicfoundation/hardhat-toolbox": "5.0.0",
+        "@nomiclabs/hardhat-solhint": "4.0.1",
+        "@openzeppelin/hardhat-upgrades": "3.9.0",
+        "@types/eslint__js": "8.42.3",
+        "dotenv": "16.4.7",
+        "eslint": "9.17.0",
+        "eslint-config-prettier": "9.1.0",
+        "globals": "15.14.0",
+        "hardhat": "2.22.18",
+        "hardhat-abi-exporter": "2.10.1",
+        "hardhat-contract-sizer": "2.10.0",
+        "hardhat-tracer": "3.1.0",
+        "husky": "9.1.7",
+        "lint-staged": "15.2.11",
+        "mocha": "11.0.1",
+        "prettier": "3.4.2",
+        "prettier-plugin-solidity": "1.4.1",
+        "solidity-coverage": "0.8.14",
+        "solidity-docgen": "0.6.0-beta.36",
+        "typescript-eslint": "8.18.2"
+    },
+    "overrides": {
+        "hardhat-gas-reporter": "2.2.2"
+    },
+    "files": [
+        "/contracts/**/*.sol",
+        "/artifacts/contracts/**/*.json",
+        "!/mocks/**/*"
+    ],
+    "keywords": [
+        "blockchain",
+        "solidity",
+        "contracts",
+        "hardhat",
+        "ethers",
+        "typescript",
+        "ts",
+        "mocha",
+        "chai"
+    ]
+}
