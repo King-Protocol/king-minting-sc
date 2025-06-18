@@ -336,18 +336,6 @@ contract RetailCore is
         emit PriceProviderUpdated(newProvider);
     }
 
-    /**
-     * @notice Forcefully updates the price provider to a new address.
-     * @dev This function allows the admin to override the price provider address manually.
-     * @param newPriceProvider The address of the new price provider.
-     */
-    function forceUpdatePriceProvider(address newPriceProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newPriceProvider == address(0)) revert ZeroAddress();
-        if (address(priceProvider) == newPriceProvider) revert AlreadyInThisState();
-        priceProvider = IPriceProvider(newPriceProvider);
-        emit PriceProviderUpdated(newPriceProvider);
-    }
-
     /// INTERNAL HELPERS
     function _updateEpochIfNeeded() internal {
         if (epochDuration > 0 && block.timestamp >= nextEpochTimestamp) {
