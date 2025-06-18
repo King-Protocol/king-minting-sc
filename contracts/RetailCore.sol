@@ -152,7 +152,7 @@ contract RetailCore is
         for (uint256 i = 0; i < tokenCount; i++) {
             address tokenAddress = tokens[i];
             uint256 amountToDeposit = amounts[i];
-            if (amountToDeposit == 0) continue;
+            if (amountToDeposit == 0) revert InvalidAmount();
 
             if (tokenPaused[tokenAddress]) revert TokenPaused();
             if (!kingContract.isTokenWhitelisted(tokenAddress)) revert TokenNotWhitelisted();
