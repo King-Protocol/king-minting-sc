@@ -234,7 +234,7 @@ contract RetailCore is
      * @param resetNow If true, resets the current epoch immediately.
      */
     function setEpochDuration(uint256 _epochDuration, bool resetNow) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_epochDuration == 0) revert InvalidEpochDuration();
+        if (_epochDuration < 1 hours || _epochDuration > 1 years) revert InvalidEpochDuration();
         epochDuration = _epochDuration;
         if (resetNow) _resetEpoch();
         emit EpochDurationSet(epochDuration);
