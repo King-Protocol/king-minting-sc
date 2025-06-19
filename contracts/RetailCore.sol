@@ -31,7 +31,7 @@ contract RetailCore is
     /// CONSTANTS & ROLES
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     uint256 public constant BPS_DENOMINATOR = 10000;
-    uint256 public constant MAX_FEE_VALUE = 9000;
+    uint256 public constant MAX_FEE_VALUE = 5000;
 
     /// STATE VARIABLES
     /// @notice Address of the main King contract
