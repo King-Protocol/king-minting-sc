@@ -45,9 +45,6 @@ interface IRetailCore {
 
     /// @notice Update the price provider contract from King contract.
     function updatePriceProvider() external;
-    
-    /// @notice Set the price provider contract.
-    function forceUpdatePriceProvider(address newPriceProvider) external;
 
     /*//////////////////////////////////////////////////////////////
                            VIEW FUNCTIONS
