@@ -108,25 +108,27 @@ contract RetailCore is
     /**
      * @notice Initialize contract parameters.
      * @param _kingContract Address of the King contract.
+     * @param _admin Address of the admin to grant roles.
      * @param _depositFeeBps Initial deposit fee in BPS.
      * @param _unwrapFeeBps Initial unwrap fee in BPS.
      * @param _epochDuration Epoch duration in seconds (0 to use default of 7 days).
      */
     function initialize(
         address _kingContract,
+        address _admin,
         uint256 _depositFeeBps,
         uint256 _unwrapFeeBps,
         uint256 _epochDuration
     ) public initializer {
-        if (_kingContract == address(0)) revert ZeroAddress();
+        if (_kingContract == address(0) || _admin == address(0)) revert ZeroAddress();
         kingContract = IKing(_kingContract);
-
         __AccessControl_init();
         __ReentrancyGuard_init();
         __Pausable_init();
 
+        _grantRole(DEFAULT_ADMIN_ROLE,_admin);
+        _grantRole(PAUSER_ROLE, _admin);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(PAUSER_ROLE, msg.sender);
 
         updatePriceProvider();
         setEpochDuration(_epochDuration, false);
@@ -134,6 +136,8 @@ contract RetailCore is
 
         setDepositFeeBps(_depositFeeBps);
         setUnwrapFeeBps(_unwrapFeeBps);
+
+        _revokeRole(DEFAULT_ADMIN_ROLE,msg.sender);
     }
 
     /// USER-FACING FUNCTIONS

@@ -64,7 +64,7 @@ describe("RetailCore", () => {
 
     retail = (await upgrades.deployProxy(
       RetailCoreFactory,
-      [king.target, DEPOSIT_FEE_BPS, UNWRAP_FEE_BPS, EPOCH_DURATION_S],
+      [king.target, admin.address, DEPOSIT_FEE_BPS, UNWRAP_FEE_BPS, EPOCH_DURATION_S],
       { initializer: "initialize", kind: "transparent" },
     )) as RetailCore;
 
@@ -112,7 +112,18 @@ describe("RetailCore", () => {
       await expect(
         upgrades.deployProxy(
           RetailCoreFactory2,
-          [ZeroAddress, DEPOSIT_FEE_BPS, UNWRAP_FEE_BPS, EPOCH_DURATION_S],
+          [ZeroAddress, admin.address, DEPOSIT_FEE_BPS, UNWRAP_FEE_BPS, EPOCH_DURATION_S],
+          {
+            initializer: "initialize",
+            kind: "transparent",
+          },
+        ),
+      ).to.be.revertedWithCustomError(retail, "ZeroAddress");
+
+      await expect(
+        upgrades.deployProxy(
+          RetailCoreFactory2,
+          [king.target, ZeroAddress, DEPOSIT_FEE_BPS, UNWRAP_FEE_BPS, EPOCH_DURATION_S],
           {
             initializer: "initialize",
             kind: "transparent",
