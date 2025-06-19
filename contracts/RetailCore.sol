@@ -99,6 +99,11 @@ contract RetailCore is
         _;
     }
 
+    /// CONSTRUCTOR
+    constructor() {
+        _disableInitializers();
+    }
+
     /// INITIALIZER
     /**
      * @notice Initialize contract parameters.
@@ -160,8 +165,8 @@ contract RetailCore is
                 revert DepositLimitExceeded();
             depositUsed[tokenAddress] += amountToDeposit;
 
-            IERC20(tokens[i]).safeTransferFrom(msg.sender, address(this), amounts[i]);
-            IERC20(tokens[i]).forceApprove(address(kingContract), amounts[i]);
+            IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amounts[i]);
+            IERC20(tokenAddress).forceApprove(address(kingContract), amounts[i]);
         }
 
         uint256 balanceBefore = kingContract.balanceOf(address(this));
@@ -192,9 +197,7 @@ contract RetailCore is
 
         // Calculate retail unwrap fee
         uint256 feeAmount = (kingAmount * unwrapFeeBps) / BPS_DENOMINATOR;
-        uint256 netKingAmount; // Amount to actually redeem after fee
-
-        netKingAmount = kingAmount - feeAmount;
+        uint256 netKingAmount = kingAmount - feeAmount; // Amount to actually redeem after fee
 
         // Accrue the fee (even if netKingAmount is 0)
         if (feeAmount > 0) accruedFees += feeAmount;
@@ -357,9 +360,9 @@ contract RetailCore is
         address[] memory allTokensList = kingContract.allTokens();
         uint256 totalTokens = allTokensList.length;
         for (uint256 i = 0; i < totalTokens; i++) {
-            depositUsed[allTokensList[i]] = 0;
+            delete depositUsed[allTokensList[i]];
         }
-        emit EpochReset(nextEpochTimestamp);
+        emit EpochReset(newNextTimestamp);
     }
 
     /**
@@ -371,12 +374,7 @@ contract RetailCore is
         // Read current state
         uint256 storedNextTimestamp = nextEpochTimestamp;
         uint256 duration = epochDuration;
-
-        // Handle case where epoch duration is zero (infinite epoch)
-        if (duration == 0) {
-            return type(uint256).max; // Or potentially return storedNextTimestamp if that's desired behavior for "infinite"
-        }
-
+        
         // Check if the stored timestamp has passed
         if (block.timestamp >= storedNextTimestamp) {
             // Calculate how many full epochs have passed since the stored time
