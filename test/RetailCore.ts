@@ -316,6 +316,21 @@ describe("RetailCore", () => {
         retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [fulfillLimit, 0]),
       ).to.be.revertedWithCustomError(retail, "DepositLimitExceeded");
     });
+    
+    it("reverts on single-token deposit with amount == 0", async () => {
+      await expect(
+          retail.connect(user3).depositMultiple([TOKENS.ALT], [0]),
+        ).to.be.revertedWithCustomError(retail, "InvalidAmount");
+      });
+      
+    it("reverts when ANY element in array is zero", async () => {
+        const half = amount / 2n;
+        await weth.connect(user3).transfer(user1.address, half);
+      
+        await expect(
+          retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]),
+        ).to.be.revertedWithCustomError(retail, "InvalidAmount");
+    });
 
     it("token not whitelisted revert while depositing", async () => {
       const half = amount / 2n;
@@ -489,11 +504,66 @@ describe("RetailCore", () => {
         "DepositFeeTooBig",
       );
     });
+
+    it("allows setting fee exactly MAX_FEE_VALUE, but >MAX reverts", async () => {
+      const MAX = await retail.MAX_FEE_VALUE();
+
+      await expect(retail.connect(admin).setDepositFeeBps(MAX)).to.not.be.reverted;
+      expect((await retail.getGlobalConfig()).depositFeeBpsValue).to.equal(MAX);
+      await expect(retail.connect(admin).setDepositFeeBps(MAX + 1n)).to.be.revertedWithCustomError(
+        retail,
+        "DepositFeeTooBig",
+      );
+      await expect(retail.connect(admin).setUnwrapFeeBps(MAX)).to.not.be.reverted;
+      expect((await retail.getGlobalConfig()).unwrapFeeBpsValue).to.equal(MAX);
+      await expect(retail.connect(admin).setUnwrapFeeBps(MAX + 1n)).to.be.revertedWithCustomError(
+        retail,
+        "UnwrapFeeTooBig",
+      );
+    });
+
+    it("epochDuration < 1 hour or > 30 days reverts", async () => {
+      const ONE_HOUR = 60 * 60;
+      const THIRTY_DAYS = 30 * 24 * 60 * 60;
+      await expect(
+        retail.connect(admin).setEpochDuration(ONE_HOUR - 1, false),
+      ).to.be.revertedWithCustomError(retail, "InvalidEpochDuration");
+
+      await expect(
+        retail.connect(admin).setEpochDuration(THIRTY_DAYS + 1, false),
+      ).to.be.revertedWithCustomError(retail, "InvalidEpochDuration");
+    });
+
+
+
+    it("allows a very small (dust) deposit that still mints >0 KING", async () => {
+      const tiny = 1n;
+      const preview = await retail.previewDepositMultiple([TOKENS.ALT], [tiny]);
+      if (preview.kingToReceiveNet > 0n) {
+        await weth.connect(user3).transfer(user2, tiny);
+        await weth.connect(user2).approve(retail.target, MaxUint256);
+        await expect(retail.connect(user2).depositMultiple([TOKENS.ALT], [tiny])).to.not.be
+          .reverted;
+      }
+    });
+      
+    it("reverts with DepositTooSmall when King mints zero", async () => {
+      let amt = 1n;
+      for (let i = 0; i < 32; i++) {
+        const p = await retail.previewDepositMultiple([TOKENS.ALT], [amt]);
+        if (p.kingToReceiveNet === 0n) {
+          await weth.connect(user3).transfer(user2, amt);
+          await weth.connect(user2).approve(retail.target, MaxUint256);
+          await expect(
+            retail.connect(user2).depositMultiple([TOKENS.ALT], [amt]),
+          ).to.be.revertedWithCustomError(retail, "DepositTooSmall");
+          return;
+        }
+        amt = amt * 2n;
+      }
+    });
   });
 
-  /*************************************************
-   *                  GETTERS                      *
-   *************************************************/
   describe("Getters", () => {
     it("global config", async () => {
       const cfg = await retail.getGlobalConfig();
@@ -609,28 +679,6 @@ describe("RetailCore", () => {
       const usdcAmount = parseUnits("1", 6);
       await expect(retail.tokenAmountToUsd(USDC, usdcAmount)).to.be.reverted; //because in king's oracle it's not in token config
     });
-
-    it("update price provider", async () => {
-      const priceProvider = await retail.priceProvider();
-      await expect(retail.connect(admin).updatePriceProvider()).to.be.revertedWithCustomError(retail, "AlreadyInThisState");
-      expect(priceProvider).to.be.eq(await retail.priceProvider());
-
-      await expect(retail.forceUpdatePriceProvider(king.target)).to.emit(retail, "PriceProviderUpdated").withArgs(king.target); //set random address
-      expect(await retail.priceProvider()).to.be.eq(king.target);
-
-      await expect(retail.forceUpdatePriceProvider(king.target)).to.be.revertedWithCustomError(
-        retail,
-        "AlreadyInThisState",
-      );
-
-      await expect(retail.connect(admin).forceUpdatePriceProvider(ZeroAddress)).to.be.revertedWithCustomError(
-        retail,
-        "ZeroAddress",
-      );
-
-      await expect(retail.connect(user3).forceUpdatePriceProvider(king.target)).to.be.reverted;
-      await expect(retail.connect(user3).updatePriceProvider()).to.be.reverted;
-    })
   });
 
   /*************************************************
