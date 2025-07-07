@@ -92,6 +92,7 @@ contract RetailCore is
     error KingPreviewDepositFailed();
     error KingPreviewRedeemFailed();
     error NetKingAmountZero();
+    error DuplicateToken(address token);
 
     /// MODIFIERS
     modifier onlyWhitelistedToken(address token) {
@@ -150,44 +151,45 @@ contract RetailCore is
         address[] calldata tokens,
         uint256[] calldata amounts
     ) external nonReentrant whenNotPaused {
-        uint256 tokenCount = tokens.length;
-        if (tokenCount != amounts.length) revert AssetArrayLengthMismatch();
-        if (tokenCount == 0) revert EmptyDeposit();
+        uint256 len = tokens.length;
+        if (len != amounts.length) revert AssetArrayLengthMismatch();
+        if (len == 0) revert EmptyDeposit();
 
         _updateEpochIfNeeded();
 
-        for (uint256 i = 0; i < tokenCount; i++) {
-            address tokenAddress = tokens[i];
-            uint256 amountToDeposit = amounts[i];
-            if (amountToDeposit == 0) revert InvalidAmount();
+        for (uint256 i; i < len; ++i) {
+            for (uint256 j; j < i; ++j) {
+                if (tokens[j] == tokens[i]) revert DuplicateToken(tokens[i]);
+            }
 
-            if (tokenPaused[tokenAddress]) revert TokenPaused();
-            if (!kingContract.isTokenWhitelisted(tokenAddress)) revert TokenNotWhitelisted();
+            uint256 amount = amounts[i];
+            if (amount == 0) revert InvalidAmount();
+            address token = tokens[i];
 
-            uint256 allowedLimit = depositLimit[tokenAddress];
-            if (allowedLimit == 0 || depositUsed[tokenAddress] + amountToDeposit > allowedLimit)
-                revert DepositLimitExceeded();
-            depositUsed[tokenAddress] += amountToDeposit;
+            if (tokenPaused[token]) revert TokenPaused();
+            if (!kingContract.isTokenWhitelisted(token)) revert TokenNotWhitelisted();
 
-            IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amounts[i]);
-            IERC20(tokenAddress).forceApprove(address(kingContract), amounts[i]);
+            uint256 limit = depositLimit[token];
+            if (limit == 0 || depositUsed[token] + amount > limit) revert DepositLimitExceeded();
+            depositUsed[token] += amount;
+
+            IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+            IERC20(token).forceApprove(address(kingContract), amount);
         }
 
-        uint256 balanceBefore = kingContract.balanceOf(address(this));
+        uint256 beforeBal = kingContract.balanceOf(address(this));
         kingContract.deposit(tokens, amounts, address(this));
-        uint256 balanceAfter = kingContract.balanceOf(address(this));
-        uint256 totalMintedKing = balanceAfter - balanceBefore;
+        uint256 minted = kingContract.balanceOf(address(this)) - beforeBal;
 
-        // Calculate retail fee
-        uint256 feeAmount = (totalMintedKing * depositFeeBps) / BPS_DENOMINATOR;
-        uint256 netKingAmount = totalMintedKing - feeAmount;
-        accruedFees += feeAmount;
+        uint256 fee = (minted * depositFeeBps) / BPS_DENOMINATOR;
+        uint256 net = minted - fee;
+        accruedFees += fee;
+        if (net == 0) revert DepositTooSmall();
 
-        if (netKingAmount == 0) revert DepositTooSmall();
-
-        kingContract.safeTransfer(msg.sender, netKingAmount);
-        emit Deposited(msg.sender, tokens, amounts, netKingAmount, feeAmount);
+        kingContract.safeTransfer(msg.sender, net);
+        emit Deposited(msg.sender, tokens, amounts, net, fee);
     }
+
 
     /**
      * @notice Unwrap King tokens back to underlying assets.

@@ -212,6 +212,11 @@ describe("RetailCore", () => {
       );
     });
 
+    it("no dublicate token deposit", async () => {
+      const tx = await retail.connect(user3).depositMultiple([TOKENS.ALT, TOKENS.ALT], [amount, amount]);
+      await expect(tx).to.be.revertedWithCustomError(retail, "DuplicateToken");
+    });
+
     it("deposit with reset epoch", async () => {
       const balUserBefore = await weth.balanceOf(user3.address);
       const balRetailBefore = await weth.balanceOf(retail.target);
