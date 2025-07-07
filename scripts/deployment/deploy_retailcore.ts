@@ -6,7 +6,7 @@ dotenv.config();
 const KING_ADDRESS = "0x8F08B70456eb22f6109F57b8fafE862ED28E6040";
 const DEPOSIT_FEE_BPS = 100; // 1 %
 const UNWRAP_FEE_BPS = 100; // 1 %
-const EPOCH_SECONDS = 60; // 1 minute
+const EPOCH_SECONDS = 3600; // 1 minute
 
 /* per-token limits */
 const LIMITS: Record<string, bigint> = {
@@ -18,15 +18,15 @@ const LIMITS: Record<string, bigint> = {
 /* ---------------------------------------------------- */
 
 async function main() {
-  const [admin] = await ethers.getSigners();
-  console.log(`Deployer / admin: ${admin.address}`);
+  const admin = "0xF46D3734564ef9a5a16fC3B1216831a28f78e2B5"; // replace with your deployer address
+  console.log(`Deployer / admin: ${admin}`);
   console.log(`Network:          ${network.name}`);
 
   /* 1. deploy proxy */
   const RetailCore = await ethers.getContractFactory("RetailCore");
   const proxy: any = await upgrades.deployProxy(
     RetailCore,
-    [KING_ADDRESS, admin.address, DEPOSIT_FEE_BPS, UNWRAP_FEE_BPS, EPOCH_SECONDS],
+    [KING_ADDRESS, admin, DEPOSIT_FEE_BPS, UNWRAP_FEE_BPS, EPOCH_SECONDS],
     { initializer: "initialize", kind: "transparent" },
   );
   await proxy.waitForDeployment();

@@ -101,6 +101,7 @@ contract RetailCore is
     }
 
     /// CONSTRUCTOR
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -127,7 +128,7 @@ contract RetailCore is
         __ReentrancyGuard_init();
         __Pausable_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE,_admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
@@ -138,7 +139,9 @@ contract RetailCore is
         setDepositFeeBps(_depositFeeBps);
         setUnwrapFeeBps(_unwrapFeeBps);
 
-        _revokeRole(DEFAULT_ADMIN_ROLE,msg.sender);
+        if (_admin != msg.sender) {
+            _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        }
     }
 
     /// USER-FACING FUNCTIONS
@@ -189,7 +192,6 @@ contract RetailCore is
         kingContract.safeTransfer(msg.sender, net);
         emit Deposited(msg.sender, tokens, amounts, net, fee);
     }
-
 
     /**
      * @notice Unwrap King tokens back to underlying assets.
@@ -334,7 +336,7 @@ contract RetailCore is
         _resetEpoch();
     }
 
-     /**
+    /**
      * @notice Synchronizes the `priceProvider` address with the one currently set in the `kingContract`.
      * @dev Useful if the King contract updates its price provider. Requires admin role.
      */
@@ -342,7 +344,7 @@ contract RetailCore is
         address newProvider = kingContract.priceProvider();
         if (address(priceProvider) == newProvider) revert AlreadyInThisState();
         priceProvider = IPriceProvider(newProvider);
-        emit PriceProviderUpdated(newProvider); 
+        emit PriceProviderUpdated(newProvider);
     }
 
     /// INTERNAL HELPERS
@@ -380,7 +382,7 @@ contract RetailCore is
         // Read current state
         uint256 storedNextTimestamp = nextEpochTimestamp;
         uint256 duration = epochDuration;
-        
+
         // Check if the stored timestamp has passed
         if (block.timestamp >= storedNextTimestamp) {
             // Calculate how many full epochs have passed since the stored time
@@ -395,9 +397,7 @@ contract RetailCore is
         }
     }
 
-
-
-     /**
+    /**
      * @dev Converts a token amount to its approximate USD value.
      * @param token The token address.
      * @param amount The token amount (in its smallest unit).
@@ -421,7 +421,7 @@ contract RetailCore is
         return _ethToUsd(ethValue);
     }
 
-     /**
+    /**
      * @dev Converts an ETH value to USD value using the contract's price provider.
      * @param ethValue The value in ETH (18 decimals).
      * @return usdValue The value in USD (18 decimals). Returns 0 if price is 0 or on error.
@@ -440,7 +440,6 @@ contract RetailCore is
         // Assuming price is USD per 1 ETH, and ethValue has 18 decimals. Result will have 18 decimals.
         return (ethValue * price) / denominator;
     }
-
 
     /// GETTERS
     /**
@@ -683,18 +682,25 @@ contract RetailCore is
             uint256 epochDurationValue,
             uint256 nextEpochTimestampValue,
             uint256 accruedFeesValue,
-            address[] memory tokens, 
+            address[] memory tokens,
             uint256[] memory limits,
             uint256[] memory used,
             bool[] memory pausedStatuses,
             uint256[] memory prices
         )
     {
-        (kingContractAddress, depositFeeBpsValue, unwrapFeeBpsValue, epochDurationValue, nextEpochTimestampValue, accruedFeesValue) = getGlobalConfig();
+        (
+            kingContractAddress,
+            depositFeeBpsValue,
+            unwrapFeeBpsValue,
+            epochDurationValue,
+            nextEpochTimestampValue,
+            accruedFeesValue
+        ) = getGlobalConfig();
         (tokens, limits, used, pausedStatuses) = getTokensAndLimits();
         prices = new uint256[](tokens.length);
         for (uint256 i = 0; i < tokens.length; i++) {
-            prices[i] = tokenAmountToUsd(tokens[i], 10**IERC20Metadata(tokens[i]).decimals());
+            prices[i] = tokenAmountToUsd(tokens[i], 10 ** IERC20Metadata(tokens[i]).decimals());
         }
     }
 }

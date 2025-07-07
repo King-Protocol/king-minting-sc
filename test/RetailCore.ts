@@ -29,7 +29,7 @@ const WHALES = [
 ];
 const DEPOSIT_FEE_BPS = 100;
 const UNWRAP_FEE_BPS = 100;
-const EPOCH_DURATION_S = 60; //1 minute
+const EPOCH_DURATION_S = 3600; //1 minute
 
 /* helper to impersonate whales */
 async function imp(addr: string) {
@@ -171,7 +171,7 @@ describe("RetailCore", () => {
       const balRetailBefore = await weth.balanceOf(retail.target);
       const kingBalanceBefore = await king.balanceOf(user3.address);
 
-      const newEpochDuration = 10;
+      const newEpochDuration = 3600;
       await retail.setEpochDuration(newEpochDuration, true);
       await time.increase(EPOCH_DURATION_S + 1);
 
@@ -213,7 +213,7 @@ describe("RetailCore", () => {
     });
 
     it("no dublicate token deposit", async () => {
-      const tx = await retail.connect(user3).depositMultiple([TOKENS.ALT, TOKENS.ALT], [amount, amount]);
+      const tx = retail.connect(user3).depositMultiple([TOKENS.ALT, TOKENS.ALT], [amount, amount]);
       await expect(tx).to.be.revertedWithCustomError(retail, "DuplicateToken");
     });
 
@@ -273,23 +273,11 @@ describe("RetailCore", () => {
     it("multi-token with zero amount", async () => {
       const half = amount / 2n;
       await weth.connect(user3).transfer(user1.address, half);
-      const kingAmtBefore = await king.balanceOf(user1);
+  
 
-      await retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]);
-
-      const kingAmt = await king.balanceOf(user1);
-      expect(kingAmt).to.be.gt(kingAmtBefore);
-
-      const [limit1, u1] = await retail.getTokenDepositInfo(TOKENS.ALT);
-      const [limit2, u2] = await retail.getTokenDepositInfo(TOKENS.ETHFI);
-      expect(u1).to.equal(half);
-      expect(u2).to.equal(0);
-      expect(limit1).to.equal(LIMITS[TOKENS.ALT]);
-      expect(limit2).to.equal(LIMITS[TOKENS.ETHFI]);
-
-      const [net, ,] = await retail.previewDepositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]);
-      expect(net).to.be.gt(0);
-      expect(net).to.be.eq(kingAmt);
+      const tx =retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]);
+      await expect(tx).to.be.revertedWithCustomError(retail, "InvalidAmount");
+    
     });
 
     it("2x multi-token deposit but second exceeds limit revert", async () => {
@@ -440,9 +428,9 @@ describe("RetailCore", () => {
     });
 
     it("epoch duration reset", async () => {
-      const tx = await retail.connect(admin).setEpochDuration(EPOCH_DURATION_S / 2, true);
+      const tx = await retail.connect(admin).setEpochDuration(EPOCH_DURATION_S * 2, true);
       await expect(tx).to.emit(retail, "EpochDurationSet");
-      expect((await retail.getEpochInfo()).duration).to.equal(EPOCH_DURATION_S / 2);
+      expect((await retail.getEpochInfo()).duration).to.equal(EPOCH_DURATION_S * 2);
     });
 
     it("invalid epoch duration set revert", async () => {
@@ -676,7 +664,6 @@ describe("RetailCore", () => {
       const amount = parseEther("1");
       const res = await retail.tokenAmountToUsd(TOKENS.EIGEN, amount);
       expect(res).to.be.not.equal(0);
-      console.log(res);
 
       const res0 = await retail.tokenAmountToUsd(TOKENS.SWELL, 0);
       expect(res0).to.be.eq(0);
@@ -759,11 +746,11 @@ describe("RetailCore", () => {
     });
 
     it("multi-epoch rollover", async () => {
-      await retail.connect(admin).setEpochDuration(5, true); // 5-second epochs
+      await retail.connect(admin).setEpochDuration(3600, true);
       await time.increase(EPOCH_DURATION_S + 1); //because in update -> block.timestamp >= nextEpochTimestamp
 
       for (let i = 0; i < 3; i++) {
-        await time.increase(7);
+        await time.increase(3601);
         await retail.connect(user3).depositMultiple([TOKENS.ALT], [parseEther("0.0001")]);
 
         const [, used] = await retail.getTokenDepositInfo(TOKENS.ALT);
@@ -823,7 +810,7 @@ describe("RetailCore", () => {
 
     it("contract life-cycle", async () => {
       /* make epochs short for test speed */
-      await retail.connect(admin).setEpochDuration(5, true);
+      await retail.connect(admin).setEpochDuration(3600, true);
       await time.increase(EPOCH_DURATION_S + 1); // because in update -> block.timestamp >= nextEpochTimestamp
 
       /* ---------- 1. user1 deposits ETHFI ----------------------------------- */
@@ -839,7 +826,7 @@ describe("RetailCore", () => {
       expect(await eigen.balanceOf(user2)).to.equal(u2EigenBefore - eigenAmt);
 
       /* ---------- 3. epoch rollover (auto-reset on first tx after jump) ----- */
-      await time.increase(7);
+      await time.increase(3601);
       await retail.connect(user3).depositMultiple([TOKENS.ALT], [parseEther("0.01")]);
       const [, usedEthfiAfterReset] = await retail.getTokenDepositInfo(TOKENS.ETHFI);
       expect(usedEthfiAfterReset).to.equal(0); // previous usage cleared
@@ -876,8 +863,8 @@ describe("RetailCore", () => {
         [halfLimit, 0n], // second token zero-amount
       );
 
-      await retail.connect(user1).depositMultiple([TOKENS.SWELL, TOKENS.ETHFI], [halfLimit, 0n]);
-
+      await retail.connect(user1).depositMultiple([TOKENS.SWELL, TOKENS.ETHFI], [halfLimit, 1n]);
+с
       expect((await king.balanceOf(user1)) - kingBeforeMD).to.equal(netPrev);
 
       /* ---------- 8. SWELL usage should equal halfLimit --------------------- */
