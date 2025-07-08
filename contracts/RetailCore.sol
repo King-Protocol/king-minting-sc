@@ -32,6 +32,7 @@ contract RetailCore is
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     uint256 public constant BPS_DENOMINATOR = 10000;
     uint256 public constant MAX_FEE_VALUE = 5000;
+    uint256 constant MAX_DEPOSIT_TOKENS = 20;
 
     /// STATE VARIABLES
     /// @notice Address of the main King contract
@@ -93,6 +94,7 @@ contract RetailCore is
     error KingPreviewRedeemFailed();
     error NetKingAmountZero();
     error DuplicateToken(address token);
+    error TooManyTokens();
 
     /// MODIFIERS
     modifier onlyWhitelistedToken(address token) {
@@ -154,7 +156,9 @@ contract RetailCore is
         address[] calldata tokens,
         uint256[] calldata amounts
     ) external nonReentrant whenNotPaused {
+       
         uint256 len = tokens.length;
+        if (len > MAX_DEPOSIT_TOKENS) revert TooManyTokens();
         if (len != amounts.length) revert AssetArrayLengthMismatch();
         if (len == 0) revert EmptyDeposit();
 
@@ -170,7 +174,6 @@ contract RetailCore is
             address token = tokens[i];
 
             if (tokenPaused[token]) revert TokenPaused();
-            if (!kingContract.isTokenWhitelisted(token)) revert TokenNotWhitelisted();
 
             uint256 limit = depositLimit[token];
             if (limit == 0 || depositUsed[token] + amount > limit) revert DepositLimitExceeded();
@@ -220,9 +223,6 @@ contract RetailCore is
 
         // Get underlying asset balances after redemption
         (, uint256[] memory amountsAfter) = kingContract.totalAssets();
-
-        if (allTokens.length != amountsBefore.length || allTokens.length != amountsAfter.length)
-            revert AssetArrayLengthMismatch();
 
         // Distribute received underlying assets to the user
         for (uint256 i = 0; i < allTokens.length; i++) {
