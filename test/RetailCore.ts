@@ -332,6 +332,15 @@ describe("RetailCore", () => {
       );
     });
 
+    it("tokens too long (>20) revert", async () => {
+      const tokens = Array(21).fill(TOKENS.ALT);
+      const amounts = Array(21).fill(amount);
+      await expect(retail.connect(user3).depositMultiple(tokens, amounts)).to.be.revertedWithCustomError(
+        retail,
+        "TooManyTokens",
+      );
+    });
+
     it("token paused", async () => {
       await retail.connect(admin).setTokenPause(TOKENS.ALT, true);
       await expect(retail.connect(user3).depositMultiple([TOKENS.ALT], [amount])).to.be.revertedWithCustomError(
@@ -433,17 +442,17 @@ describe("RetailCore", () => {
     it("set token pause", async () => {
       const tx = await retail.connect(admin).setTokenPause(TOKENS.ALT, true);
       await expect(tx).to.emit(retail, "TokenPauseChanged").withArgs(TOKENS.ALT, true);
-      expect(await retail.isTokenPaused(TOKENS.ALT)).to.equal(true);
+      expect(await retail.tokenPaused(TOKENS.ALT)).to.equal(true);
 
       const tx2 = await retail.connect(admin).setTokenPause(TOKENS.ALT, false);
       await expect(tx2).to.emit(retail, "TokenPauseChanged").withArgs(TOKENS.ALT, false);
-      expect(await retail.isTokenPaused(TOKENS.ALT)).to.equal(false);
+      expect(await retail.tokenPaused(TOKENS.ALT)).to.equal(false);
     });
 
     it("set token pause already in this state revert", async () => {
       const tx = await retail.connect(admin).setTokenPause(TOKENS.ALT, true);
       await expect(tx).to.emit(retail, "TokenPauseChanged").withArgs(TOKENS.ALT, true);
-      expect(await retail.isTokenPaused(TOKENS.ALT)).to.equal(true);
+      expect(await retail.tokenPaused(TOKENS.ALT)).to.equal(true);
 
       await expect(retail.connect(admin).setTokenPause(TOKENS.ALT, true)).to.be.revertedWithCustomError(
         retail,

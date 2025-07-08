@@ -94,7 +94,7 @@ interface IRetailCore {
     function getTokenDepositInfo(address token) external view returns (uint256 limit, uint256 used);
 
     /// @notice Returns pause status for a specific token.
-    function isTokenPaused(address token) external view returns (bool paused);
+    function tokenPaused(address token) external view returns (bool paused);
 
     /// @notice Returns all settings
     function getAllInfo()  external

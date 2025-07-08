@@ -156,7 +156,6 @@ contract RetailCore is
         address[] calldata tokens,
         uint256[] calldata amounts
     ) external nonReentrant whenNotPaused {
-       
         uint256 len = tokens.length;
         if (len > MAX_DEPOSIT_TOKENS) revert TooManyTokens();
         if (len != amounts.length) revert AssetArrayLengthMismatch();
@@ -176,7 +175,7 @@ contract RetailCore is
             if (tokenPaused[token]) revert TokenPaused();
 
             uint256 limit = depositLimit[token];
-            if (limit == 0 || depositUsed[token] + amount > limit) revert DepositLimitExceeded();
+            if (depositUsed[token] + amount > limit) revert DepositLimitExceeded();
             depositUsed[token] += amount;
 
             IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
@@ -263,6 +262,7 @@ contract RetailCore is
         uint256 count = tokens.length;
         if (count != amounts.length) revert AssetArrayLengthMismatch();
         for (uint256 i = 0; i < count; i++) {
+            if (tokens[i] == address(0)) revert ZeroAddress();
             depositLimit[tokens[i]] = amounts[i];
             emit DepositLimitSet(tokens[i], amounts[i]);
         }
@@ -349,7 +349,7 @@ contract RetailCore is
 
     /// INTERNAL HELPERS
     function _updateEpochIfNeeded() internal {
-        if (epochDuration > 0 && block.timestamp >= nextEpochTimestamp) {
+        if (block.timestamp >= nextEpochTimestamp) {
             _resetEpoch();
         }
     }
@@ -461,15 +461,6 @@ contract RetailCore is
     function getTokenDepositInfo(address token) external view returns (uint256 limit, uint256 used) {
         limit = depositLimit[token];
         used = depositUsed[token];
-    }
-
-    /**
-     * @notice Returns pause status for a specific token.
-     * @param token Token address to query.
-     * @return pausedStatus True if token deposits are paused.
-     */
-    function isTokenPaused(address token) external view returns (bool pausedStatus) {
-        pausedStatus = tokenPaused[token];
     }
 
     /**
