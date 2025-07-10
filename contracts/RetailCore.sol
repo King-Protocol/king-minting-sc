@@ -267,9 +267,14 @@ contract RetailCore is
         uint256 count = tokens.length;
         if (count != amounts.length) revert AssetArrayLengthMismatch();
         for (uint256 i = 0; i < count; i++) {
-            if (tokens[i] == address(0)) revert ZeroAddress();
-            depositLimit[tokens[i]] = amounts[i];
-            emit DepositLimitSet(tokens[i], amounts[i]);
+            address token = tokens[i];
+            if (token == address(0)) revert ZeroAddress();
+            for(uint256 j = 0; j < i; j++) {
+                if (tokens[j] == token) revert DuplicateToken(tokens[i]);
+            }
+            
+            depositLimit[token] = amounts[i];
+            emit DepositLimitSet(token, amounts[i]);
         }
     }
 
