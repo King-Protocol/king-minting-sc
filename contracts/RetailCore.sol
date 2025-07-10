@@ -169,16 +169,16 @@ contract RetailCore is
                 if (tokens[j] == tokenAddress) revert DuplicateToken(tokens[i]);
             }
             
-            uint256 amount = amounts[i];
-            if (amount == 0) revert InvalidAmount();
+            uint256 amountToDeposit = amounts[i];
+            if (amountToDeposit == 0) revert InvalidAmount();
 
             if (tokenPaused[tokenAddress]) revert TokenPaused();
             if (!kingContract.isTokenWhitelisted(tokenAddress)) revert TokenNotWhitelisted();
 
             uint256 allowedLimit = depositLimit[tokenAddress];
-            if (allowedLimit == 0 || depositUsed[tokenAddress] + amount > allowedLimit)
+            if (allowedLimit == 0 || depositUsed[tokenAddress] + amountToDeposit > allowedLimit)
                 revert DepositLimitExceeded();
-            depositUsed[tokenAddress] += amount;
+            depositUsed[tokenAddress] += amountToDeposit;
 
             IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amounts[i]);
             IERC20(tokenAddress).forceApprove(address(kingContract), amounts[i]);
