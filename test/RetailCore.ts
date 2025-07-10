@@ -325,6 +325,16 @@ describe("RetailCore", () => {
         ).to.be.revertedWithCustomError(retail, "InvalidAmount");
     });
 
+
+    it("token not whitelisted revert while depositing", async () => {
+      const half = amount / 2n;
+      await weth.connect(user3).transfer(user1.address, half);
+
+      await expect(
+        retail.connect(user1).depositMultiple([TOKENS.ALT, admin.address], [half, half]),
+      ).to.be.revertedWithCustomError(retail, "TokenNotWhitelisted");
+    });
+
     it("length mismatch", async () => {
       await expect(retail.connect(user3).depositMultiple([TOKENS.ALT], [])).to.be.revertedWithCustomError(
         retail,
