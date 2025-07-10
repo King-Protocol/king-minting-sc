@@ -130,7 +130,7 @@ contract RetailCore is
         __ReentrancyGuard_init();
         __Pausable_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(DEFAULT_ADMIN_ROLE,_admin);
         _grantRole(PAUSER_ROLE, _admin);
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
@@ -156,43 +156,48 @@ contract RetailCore is
         address[] calldata tokens,
         uint256[] calldata amounts
     ) external nonReentrant whenNotPaused {
-        uint256 len = tokens.length;
-        if (len > MAX_DEPOSIT_TOKENS) revert TooManyTokens();
-        if (len != amounts.length) revert AssetArrayLengthMismatch();
-        if (len == 0) revert EmptyDeposit();
+        uint256 tokenCount = tokens.length;
+        if (tokenCount != amounts.length) revert AssetArrayLengthMismatch();
+        if (tokenCount > MAX_DEPOSIT_TOKENS) revert TooManyTokens();
+        if (tokenCount == 0) revert EmptyDeposit();
 
         _updateEpochIfNeeded();
 
-        for (uint256 i; i < len; ++i) {
+        for (uint256 i; i < tokenCount; ++i) {
+            address tokenAddress = tokens[i];
             for (uint256 j; j < i; ++j) {
-                if (tokens[j] == tokens[i]) revert DuplicateToken(tokens[i]);
+                if (tokens[j] == tokenAddress) revert DuplicateToken(tokens[i]);
             }
-
+            
             uint256 amount = amounts[i];
             if (amount == 0) revert InvalidAmount();
-            address token = tokens[i];
 
-            if (tokenPaused[token]) revert TokenPaused();
+            if (tokenPaused[tokenAddress]) revert TokenPaused();
+            if (!kingContract.isTokenWhitelisted(tokenAddress)) revert TokenNotWhitelisted();
 
-            uint256 limit = depositLimit[token];
-            if (depositUsed[token] + amount > limit) revert DepositLimitExceeded();
-            depositUsed[token] += amount;
+            uint256 allowedLimit = depositLimit[tokenAddress];
+            if (allowedLimit == 0 || depositUsed[tokenAddress] + amount > allowedLimit)
+                revert DepositLimitExceeded();
+            depositUsed[tokenAddress] += amount;
 
-            IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-            IERC20(token).forceApprove(address(kingContract), amount);
+            IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amounts[i]);
+            IERC20(tokenAddress).forceApprove(address(kingContract), amounts[i]);
         }
 
-        uint256 beforeBal = kingContract.balanceOf(address(this));
+        uint256 balanceBefore = kingContract.balanceOf(address(this));
         kingContract.deposit(tokens, amounts, address(this));
-        uint256 minted = kingContract.balanceOf(address(this)) - beforeBal;
+        uint256 balanceAfter = kingContract.balanceOf(address(this));
+        uint256 totalMintedKing = balanceAfter - balanceBefore;
 
-        uint256 fee = (minted * depositFeeBps) / BPS_DENOMINATOR;
-        uint256 net = minted - fee;
-        accruedFees += fee;
-        if (net == 0) revert DepositTooSmall();
+        // Calculate retail fee
+        uint256 feeAmount = (totalMintedKing * depositFeeBps) / BPS_DENOMINATOR;
+        uint256 netKingAmount = totalMintedKing - feeAmount;
+        accruedFees += feeAmount;
 
-        kingContract.safeTransfer(msg.sender, net);
-        emit Deposited(msg.sender, tokens, amounts, net, fee);
+        if (netKingAmount == 0) revert DepositTooSmall();
+
+        kingContract.safeTransfer(msg.sender, netKingAmount);
+        emit Deposited(msg.sender, tokens, amounts, netKingAmount, feeAmount);
     }
 
     /**
@@ -336,7 +341,7 @@ contract RetailCore is
         _resetEpoch();
     }
 
-    /**
+     /**
      * @notice Synchronizes the `priceProvider` address with the one currently set in the `kingContract`.
      * @dev Useful if the King contract updates its price provider. Requires admin role.
      */
@@ -344,7 +349,7 @@ contract RetailCore is
         address newProvider = kingContract.priceProvider();
         if (address(priceProvider) == newProvider) revert AlreadyInThisState();
         priceProvider = IPriceProvider(newProvider);
-        emit PriceProviderUpdated(newProvider);
+        emit PriceProviderUpdated(newProvider); 
     }
 
     /// INTERNAL HELPERS
@@ -382,7 +387,7 @@ contract RetailCore is
         // Read current state
         uint256 storedNextTimestamp = nextEpochTimestamp;
         uint256 duration = epochDuration;
-
+        
         // Check if the stored timestamp has passed
         if (block.timestamp >= storedNextTimestamp) {
             // Calculate how many full epochs have passed since the stored time
@@ -397,7 +402,9 @@ contract RetailCore is
         }
     }
 
-    /**
+
+
+     /**
      * @dev Converts a token amount to its approximate USD value.
      * @param token The token address.
      * @param amount The token amount (in its smallest unit).
@@ -421,7 +428,7 @@ contract RetailCore is
         return _ethToUsd(ethValue);
     }
 
-    /**
+     /**
      * @dev Converts an ETH value to USD value using the contract's price provider.
      * @param ethValue The value in ETH (18 decimals).
      * @return usdValue The value in USD (18 decimals). Returns 0 if price is 0 or on error.
@@ -440,6 +447,7 @@ contract RetailCore is
         // Assuming price is USD per 1 ETH, and ethValue has 18 decimals. Result will have 18 decimals.
         return (ethValue * price) / denominator;
     }
+
 
     /// GETTERS
     /**
@@ -673,7 +681,7 @@ contract RetailCore is
             uint256 epochDurationValue,
             uint256 nextEpochTimestampValue,
             uint256 accruedFeesValue,
-            address[] memory tokens,
+            address[] memory tokens, 
             uint256[] memory limits,
             uint256[] memory used,
             bool[] memory pausedStatuses,
