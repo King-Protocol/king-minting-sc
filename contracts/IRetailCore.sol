@@ -40,9 +40,6 @@ interface IRetailCore {
     /// @notice Withdraw accrued fees in King tokens.
     function withdrawFees(uint256 amount) external;
 
-    /// @notice Manually reset the epoch and clear usage.
-    function resetEpoch() external;
-
     /// @notice Update the price provider contract from King contract.
     function updatePriceProvider() external;
 

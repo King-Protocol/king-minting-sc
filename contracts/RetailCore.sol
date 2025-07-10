@@ -339,13 +339,6 @@ contract RetailCore is
         emit FeesWithdrawn(msg.sender, withdrawAmount);
     }
 
-    /**
-     * @notice Manually reset the epoch and clear usage.
-     */
-    function resetEpoch() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _resetEpoch();
-    }
-
      /**
      * @notice Synchronizes the `priceProvider` address with the one currently set in the `kingContract`.
      * @dev Useful if the King contract updates its price provider. Requires admin role.

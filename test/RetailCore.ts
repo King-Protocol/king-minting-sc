@@ -217,37 +217,6 @@ describe("RetailCore", () => {
       await expect(tx).to.be.revertedWithCustomError(retail, "DuplicateToken");
     });
 
-    it("deposit with reset epoch", async () => {
-      const balUserBefore = await weth.balanceOf(user3.address);
-      const balRetailBefore = await weth.balanceOf(retail.target);
-      const kingBalanceBefore = await king.balanceOf(user3.address);
-
-      const [net] = await retail.previewDepositMultiple([TOKENS.ALT], [amount]);
-
-      const tx = await retail.connect(user3).depositMultiple([TOKENS.ALT], [amount]);
-      await expect(tx).to.emit(retail, "Deposited");
-
-      expect(await weth.balanceOf(user3.address)).to.equal(balUserBefore - amount);
-      expect(await weth.balanceOf(retail.target)).to.equal(balRetailBefore); // forwarded into King
-      expect(await retail.accruedFees()).to.be.gt(0);
-      const kingAmt = await king.balanceOf(user3.address);
-      expect(kingAmt).to.be.gt(kingBalanceBefore);
-      expect(net).to.be.eq(kingAmt);
-
-      const [limit, used] = await retail.getTokenDepositInfo(TOKENS.ALT);
-      expect(used).to.equal(amount);
-      expect(limit).to.equal(LIMITS[TOKENS.ALT]);
-
-      const depositable = await retail.getDepositableTokens();
-      expect(depositable).to.include(TOKENS.ALT);
-
-      await retail.connect(admin).resetEpoch();
-
-      const [limitAfter, usedAfter] = await retail.getTokenDepositInfo(TOKENS.ALT);
-      expect(usedAfter).to.equal(0);
-      expect(limitAfter).to.equal(LIMITS[TOKENS.ALT]);
-    });
-
     it("multi-token happy path", async () => {
       const half = amount / 2n;
       await weth.connect(user3).transfer(user1.address, half);
@@ -490,8 +459,6 @@ describe("RetailCore", () => {
       await expect(retail.connect(user3).unpauseDeposits()).to.be.reverted;
 
       await expect(retail.connect(user3).withdrawFees(1)).to.be.reverted;
-
-      await expect(retail.connect(user3).resetEpoch()).to.be.reverted;
     });
 
     it("set deposit limits asset array length mismatch revert", async () => {
