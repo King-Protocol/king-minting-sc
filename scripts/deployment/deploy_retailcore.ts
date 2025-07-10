@@ -4,9 +4,9 @@ dotenv.config();
 
 /* ---------- CONFIG (edit per network) --------------- */
 const KING_ADDRESS = "0x8F08B70456eb22f6109F57b8fafE862ED28E6040";
-const DEPOSIT_FEE_BPS = 100; // 1 %
-const UNWRAP_FEE_BPS = 100; // 1 %
-const EPOCH_SECONDS = 3600; // 1 minute
+const DEPOSIT_FEE_BPS = 0; // 0 %
+const UNWRAP_FEE_BPS = 0; // 0 %
+const EPOCH_SECONDS = 7 * 24 * 60 * 60; // 7 days in seconds
 
 /* per-token limits */
 const LIMITS: Record<string, bigint> = {
@@ -52,7 +52,9 @@ async function main() {
   // }
 
   /* 3. wire basic params inside RetailCore */
-  const retail = await ethers.getContractAt("RetailCore", proxyAddr, admin);
+
+  const adminSigner = new ethers.Wallet(process.env.ADMIN_SIGNER_PRIVATE_KEY || "", ethers.provider);
+  const retail = await ethers.getContractAt("RetailCore", proxyAddr, adminSigner);
 
   /* 3a. set per-token limits */
   await (await retail.setDepositLimits(Object.keys(LIMITS), Object.values(LIMITS))).wait();
