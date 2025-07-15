@@ -8,7 +8,7 @@ import { IERC20, IKing, RetailCore, RetailCore__factory } from "../typechain-typ
 
 /* ───── constants ───── */
 const KING_ADDRESS = "0x8F08B70456eb22f6109F57b8fafE862ED28E6040";
-const USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"; 
+const USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const TOKENS = {
   ETHFI: "0xFe0c30065B384F05761f15d0CC899D4F9F9Cc0eB",
   EIGEN: "0xec53bF9167f50cDEB3Ae105f56099aaaB9061F83",
@@ -211,6 +211,18 @@ describe("RetailCore", () => {
         "DepositLimitExceeded",
       );
     });
+    it("no deposit token duplicates", async () => {
+      await expect(retail.connect(admin).setDepositLimits([TOKENS.ALT, TOKENS.ALT], [amount, amount])).to.be.revertedWithCustomError(
+        retail,
+        "DuplicateToken",
+      );
+    });
+    it("no deposit token zero address", async () => {
+      await expect(retail.connect(admin).setDepositLimits([TOKENS.ALT, ZeroAddress], [amount, amount])).to.be.revertedWithCustomError(
+        retail,
+        "ZeroAddress",
+      );
+    });
 
     it("no dublicate token deposit", async () => {
       const tx = retail.connect(user3).depositMultiple([TOKENS.ALT, TOKENS.ALT], [amount, amount]);
@@ -242,11 +254,11 @@ describe("RetailCore", () => {
     it("multi-token with zero amount", async () => {
       const half = amount / 2n;
       await weth.connect(user3).transfer(user1.address, half);
-  
 
-      const tx =retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]);
+
+      const tx = retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]);
       await expect(tx).to.be.revertedWithCustomError(retail, "InvalidAmount");
-    
+
     });
 
     it("2x multi-token deposit but second exceeds limit revert", async () => {
@@ -278,20 +290,20 @@ describe("RetailCore", () => {
         retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [fulfillLimit, 0]),
       ).to.be.revertedWithCustomError(retail, "DepositLimitExceeded");
     });
-    
+
     it("reverts on single-token deposit with amount == 0", async () => {
       await expect(
-          retail.connect(user3).depositMultiple([TOKENS.ALT], [0]),
-        ).to.be.revertedWithCustomError(retail, "InvalidAmount");
-      });
-      
+        retail.connect(user3).depositMultiple([TOKENS.ALT], [0]),
+      ).to.be.revertedWithCustomError(retail, "InvalidAmount");
+    });
+
     it("reverts when ANY element in array is zero", async () => {
-        const half = amount / 2n;
-        await weth.connect(user3).transfer(user1.address, half);
-      
-        await expect(
-          retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]),
-        ).to.be.revertedWithCustomError(retail, "InvalidAmount");
+      const half = amount / 2n;
+      await weth.connect(user3).transfer(user1.address, half);
+
+      await expect(
+        retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]),
+      ).to.be.revertedWithCustomError(retail, "InvalidAmount");
     });
 
 
@@ -515,7 +527,7 @@ describe("RetailCore", () => {
           .reverted;
       }
     });
-      
+
     it("reverts with DepositTooSmall when King mints zero", async () => {
       let amt = 1n;
       for (let i = 0; i < 32; i++) {
@@ -576,7 +588,7 @@ describe("RetailCore", () => {
       expect(res2.kingFeeAmount).to.be.equal(0);
     });
 
-    it("get all info", async () => { 
+    it("get all info", async () => {
       const res = await retail.getAllInfo();
       expect(res.kingContractAddress).to.equal(KING_ADDRESS);
       expect(res.depositFeeBpsValue).to.equal(DEPOSIT_FEE_BPS);
