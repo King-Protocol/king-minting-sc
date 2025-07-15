@@ -31,7 +31,8 @@ contract RetailCore is
     /// CONSTANTS & ROLES
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     uint256 public constant BPS_DENOMINATOR = 10000;
-    uint256 public constant MAX_FEE_VALUE = 9000;
+    uint256 public constant MAX_FEE_VALUE = 5000;
+    uint256 constant MAX_DEPOSIT_TOKENS = 20;
 
     /// STATE VARIABLES
     /// @notice Address of the main King contract
@@ -92,6 +93,8 @@ contract RetailCore is
     error KingPreviewDepositFailed();
     error KingPreviewRedeemFailed();
     error NetKingAmountZero();
+    error DuplicateToken(address token);
+    error TooManyTokens();
 
     /// MODIFIERS
     modifier onlyWhitelistedToken(address token) {
@@ -99,11 +102,17 @@ contract RetailCore is
         _;
     }
 
+    /// CONSTRUCTOR
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /// INITIALIZER
     /**
      * @notice Initialize contract parameters.
      * @param _kingContract Address of the King contract.
-     * @param _admin Address to grant admin and pauser roles.
+     * @param _admin Address of the admin to grant roles.
      * @param _depositFeeBps Initial deposit fee in BPS.
      * @param _unwrapFeeBps Initial unwrap fee in BPS.
      * @param _epochDuration Epoch duration in seconds (0 to use default of 7 days).
@@ -117,13 +126,13 @@ contract RetailCore is
     ) public initializer {
         if (_kingContract == address(0) || _admin == address(0)) revert ZeroAddress();
         kingContract = IKing(_kingContract);
-
         __AccessControl_init();
         __ReentrancyGuard_init();
         __Pausable_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(DEFAULT_ADMIN_ROLE,_admin);
         _grantRole(PAUSER_ROLE, _admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         updatePriceProvider();
         setEpochDuration(_epochDuration, false);
@@ -131,6 +140,10 @@ contract RetailCore is
 
         setDepositFeeBps(_depositFeeBps);
         setUnwrapFeeBps(_unwrapFeeBps);
+
+        if (_admin != msg.sender) {
+            _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        }
     }
 
     /// USER-FACING FUNCTIONS
@@ -145,14 +158,19 @@ contract RetailCore is
     ) external nonReentrant whenNotPaused {
         uint256 tokenCount = tokens.length;
         if (tokenCount != amounts.length) revert AssetArrayLengthMismatch();
+        if (tokenCount > MAX_DEPOSIT_TOKENS) revert TooManyTokens();
         if (tokenCount == 0) revert EmptyDeposit();
 
         _updateEpochIfNeeded();
 
-        for (uint256 i = 0; i < tokenCount; i++) {
+        for (uint256 i; i < tokenCount; ++i) {
             address tokenAddress = tokens[i];
+            for (uint256 j; j < i; ++j) {
+                if (tokens[j] == tokenAddress) revert DuplicateToken(tokens[i]);
+            }
+            
             uint256 amountToDeposit = amounts[i];
-            if (amountToDeposit == 0) continue;
+            if (amountToDeposit == 0) revert InvalidAmount();
 
             if (tokenPaused[tokenAddress]) revert TokenPaused();
             if (!kingContract.isTokenWhitelisted(tokenAddress)) revert TokenNotWhitelisted();
@@ -162,8 +180,8 @@ contract RetailCore is
                 revert DepositLimitExceeded();
             depositUsed[tokenAddress] += amountToDeposit;
 
-            IERC20(tokens[i]).safeTransferFrom(msg.sender, address(this), amounts[i]);
-            IERC20(tokens[i]).forceApprove(address(kingContract), amounts[i]);
+            IERC20(tokenAddress).safeTransferFrom(msg.sender, address(this), amounts[i]);
+            IERC20(tokenAddress).forceApprove(address(kingContract), amounts[i]);
         }
 
         uint256 balanceBefore = kingContract.balanceOf(address(this));
@@ -194,9 +212,7 @@ contract RetailCore is
 
         // Calculate retail unwrap fee
         uint256 feeAmount = (kingAmount * unwrapFeeBps) / BPS_DENOMINATOR;
-        uint256 netKingAmount; // Amount to actually redeem after fee
-
-        netKingAmount = kingAmount - feeAmount;
+        uint256 netKingAmount = kingAmount - feeAmount; // Amount to actually redeem after fee
 
         // Accrue the fee (even if netKingAmount is 0)
         if (feeAmount > 0) accruedFees += feeAmount;
@@ -211,9 +227,6 @@ contract RetailCore is
 
         // Get underlying asset balances after redemption
         (, uint256[] memory amountsAfter) = kingContract.totalAssets();
-
-        if (allTokens.length != amountsBefore.length || allTokens.length != amountsAfter.length)
-            revert AssetArrayLengthMismatch();
 
         // Distribute received underlying assets to the user
         for (uint256 i = 0; i < allTokens.length; i++) {
@@ -236,7 +249,7 @@ contract RetailCore is
      * @param resetNow If true, resets the current epoch immediately.
      */
     function setEpochDuration(uint256 _epochDuration, bool resetNow) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_epochDuration == 0) revert InvalidEpochDuration();
+        if (_epochDuration < 1 hours || _epochDuration > 30 days) revert InvalidEpochDuration();
         epochDuration = _epochDuration;
         if (resetNow) _resetEpoch();
         emit EpochDurationSet(epochDuration);
@@ -254,8 +267,14 @@ contract RetailCore is
         uint256 count = tokens.length;
         if (count != amounts.length) revert AssetArrayLengthMismatch();
         for (uint256 i = 0; i < count; i++) {
-            depositLimit[tokens[i]] = amounts[i];
-            emit DepositLimitSet(tokens[i], amounts[i]);
+            address token = tokens[i];
+            if (token == address(0)) revert ZeroAddress();
+            for(uint256 j = 0; j < i; j++) {
+                if (tokens[j] == token) revert DuplicateToken(tokens[i]);
+            }
+            
+            depositLimit[token] = amounts[i];
+            emit DepositLimitSet(token, amounts[i]);
         }
     }
 
@@ -320,13 +339,6 @@ contract RetailCore is
         emit FeesWithdrawn(msg.sender, withdrawAmount);
     }
 
-    /**
-     * @notice Manually reset the epoch and clear usage.
-     */
-    function resetEpoch() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _resetEpoch();
-    }
-
      /**
      * @notice Synchronizes the `priceProvider` address with the one currently set in the `kingContract`.
      * @dev Useful if the King contract updates its price provider. Requires admin role.
@@ -335,24 +347,12 @@ contract RetailCore is
         address newProvider = kingContract.priceProvider();
         if (address(priceProvider) == newProvider) revert AlreadyInThisState();
         priceProvider = IPriceProvider(newProvider);
-        emit PriceProviderUpdated(newProvider);
-    }
-
-    /**
-     * @notice Forcefully updates the price provider to a new address.
-     * @dev This function allows the admin to override the price provider address manually.
-     * @param newPriceProvider The address of the new price provider.
-     */
-    function forceUpdatePriceProvider(address newPriceProvider) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newPriceProvider == address(0)) revert ZeroAddress();
-        if (address(priceProvider) == newPriceProvider) revert AlreadyInThisState();
-        priceProvider = IPriceProvider(newPriceProvider);
-        emit PriceProviderUpdated(newPriceProvider);
+        emit PriceProviderUpdated(newProvider); 
     }
 
     /// INTERNAL HELPERS
     function _updateEpochIfNeeded() internal {
-        if (epochDuration > 0 && block.timestamp >= nextEpochTimestamp) {
+        if (block.timestamp >= nextEpochTimestamp) {
             _resetEpoch();
         }
     }
@@ -371,9 +371,9 @@ contract RetailCore is
         address[] memory allTokensList = kingContract.allTokens();
         uint256 totalTokens = allTokensList.length;
         for (uint256 i = 0; i < totalTokens; i++) {
-            depositUsed[allTokensList[i]] = 0;
+            delete depositUsed[allTokensList[i]];
         }
-        emit EpochReset(nextEpochTimestamp);
+        emit EpochReset(newNextTimestamp);
     }
 
     /**
@@ -385,12 +385,7 @@ contract RetailCore is
         // Read current state
         uint256 storedNextTimestamp = nextEpochTimestamp;
         uint256 duration = epochDuration;
-
-        // Handle case where epoch duration is zero (infinite epoch)
-        if (duration == 0) {
-            return type(uint256).max; // Or potentially return storedNextTimestamp if that's desired behavior for "infinite"
-        }
-
+        
         // Check if the stored timestamp has passed
         if (block.timestamp >= storedNextTimestamp) {
             // Calculate how many full epochs have passed since the stored time
@@ -472,15 +467,6 @@ contract RetailCore is
     function getTokenDepositInfo(address token) external view returns (uint256 limit, uint256 used) {
         limit = depositLimit[token];
         used = depositUsed[token];
-    }
-
-    /**
-     * @notice Returns pause status for a specific token.
-     * @param token Token address to query.
-     * @return pausedStatus True if token deposits are paused.
-     */
-    function isTokenPaused(address token) external view returns (bool pausedStatus) {
-        pausedStatus = tokenPaused[token];
     }
 
     /**
@@ -700,11 +686,18 @@ contract RetailCore is
             uint256[] memory prices
         )
     {
-        (kingContractAddress, depositFeeBpsValue, unwrapFeeBpsValue, epochDurationValue, nextEpochTimestampValue, accruedFeesValue) = getGlobalConfig();
+        (
+            kingContractAddress,
+            depositFeeBpsValue,
+            unwrapFeeBpsValue,
+            epochDurationValue,
+            nextEpochTimestampValue,
+            accruedFeesValue
+        ) = getGlobalConfig();
         (tokens, limits, used, pausedStatuses) = getTokensAndLimits();
         prices = new uint256[](tokens.length);
         for (uint256 i = 0; i < tokens.length; i++) {
-            prices[i] = tokenAmountToUsd(tokens[i], 10**IERC20Metadata(tokens[i]).decimals());
+            prices[i] = tokenAmountToUsd(tokens[i], 10 ** IERC20Metadata(tokens[i]).decimals());
         }
     }
 }

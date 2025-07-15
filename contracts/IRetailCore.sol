@@ -40,14 +40,8 @@ interface IRetailCore {
     /// @notice Withdraw accrued fees in King tokens.
     function withdrawFees(uint256 amount) external;
 
-    /// @notice Manually reset the epoch and clear usage.
-    function resetEpoch() external;
-
     /// @notice Update the price provider contract from King contract.
     function updatePriceProvider() external;
-    
-    /// @notice Set the price provider contract.
-    function forceUpdatePriceProvider(address newPriceProvider) external;
 
     /*//////////////////////////////////////////////////////////////
                            VIEW FUNCTIONS
@@ -97,7 +91,7 @@ interface IRetailCore {
     function getTokenDepositInfo(address token) external view returns (uint256 limit, uint256 used);
 
     /// @notice Returns pause status for a specific token.
-    function isTokenPaused(address token) external view returns (bool paused);
+    function tokenPaused(address token) external view returns (bool paused);
 
     /// @notice Returns all settings
     function getAllInfo()  external

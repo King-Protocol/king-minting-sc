@@ -8,7 +8,7 @@ import { IERC20, IKing, RetailCore, RetailCore__factory } from "../typechain-typ
 
 /* ───── constants ───── */
 const KING_ADDRESS = "0x8F08B70456eb22f6109F57b8fafE862ED28E6040";
-const USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"; 
+const USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const TOKENS = {
   ETHFI: "0xFe0c30065B384F05761f15d0CC899D4F9F9Cc0eB",
   EIGEN: "0xec53bF9167f50cDEB3Ae105f56099aaaB9061F83",
@@ -29,7 +29,7 @@ const WHALES = [
 ];
 const DEPOSIT_FEE_BPS = 100;
 const UNWRAP_FEE_BPS = 100;
-const EPOCH_DURATION_S = 60; //1 minute
+const EPOCH_DURATION_S = 3600; //1 minute
 
 /* helper to impersonate whales */
 async function imp(addr: string) {
@@ -171,7 +171,7 @@ describe("RetailCore", () => {
       const balRetailBefore = await weth.balanceOf(retail.target);
       const kingBalanceBefore = await king.balanceOf(user3.address);
 
-      const newEpochDuration = 10;
+      const newEpochDuration = 3600;
       await retail.setEpochDuration(newEpochDuration, true);
       await time.increase(EPOCH_DURATION_S + 1);
 
@@ -211,36 +211,22 @@ describe("RetailCore", () => {
         "DepositLimitExceeded",
       );
     });
+    it("no deposit token duplicates", async () => {
+      await expect(retail.connect(admin).setDepositLimits([TOKENS.ALT, TOKENS.ALT], [amount, amount])).to.be.revertedWithCustomError(
+        retail,
+        "DuplicateToken",
+      );
+    });
+    it("no deposit token zero address", async () => {
+      await expect(retail.connect(admin).setDepositLimits([TOKENS.ALT, ZeroAddress], [amount, amount])).to.be.revertedWithCustomError(
+        retail,
+        "ZeroAddress",
+      );
+    });
 
-    it("deposit with reset epoch", async () => {
-      const balUserBefore = await weth.balanceOf(user3.address);
-      const balRetailBefore = await weth.balanceOf(retail.target);
-      const kingBalanceBefore = await king.balanceOf(user3.address);
-
-      const [net] = await retail.previewDepositMultiple([TOKENS.ALT], [amount]);
-
-      const tx = await retail.connect(user3).depositMultiple([TOKENS.ALT], [amount]);
-      await expect(tx).to.emit(retail, "Deposited");
-
-      expect(await weth.balanceOf(user3.address)).to.equal(balUserBefore - amount);
-      expect(await weth.balanceOf(retail.target)).to.equal(balRetailBefore); // forwarded into King
-      expect(await retail.accruedFees()).to.be.gt(0);
-      const kingAmt = await king.balanceOf(user3.address);
-      expect(kingAmt).to.be.gt(kingBalanceBefore);
-      expect(net).to.be.eq(kingAmt);
-
-      const [limit, used] = await retail.getTokenDepositInfo(TOKENS.ALT);
-      expect(used).to.equal(amount);
-      expect(limit).to.equal(LIMITS[TOKENS.ALT]);
-
-      const depositable = await retail.getDepositableTokens();
-      expect(depositable).to.include(TOKENS.ALT);
-
-      await retail.connect(admin).resetEpoch();
-
-      const [limitAfter, usedAfter] = await retail.getTokenDepositInfo(TOKENS.ALT);
-      expect(usedAfter).to.equal(0);
-      expect(limitAfter).to.equal(LIMITS[TOKENS.ALT]);
+    it("no dublicate token deposit", async () => {
+      const tx = retail.connect(user3).depositMultiple([TOKENS.ALT, TOKENS.ALT], [amount, amount]);
+      await expect(tx).to.be.revertedWithCustomError(retail, "DuplicateToken");
     });
 
     it("multi-token happy path", async () => {
@@ -268,23 +254,11 @@ describe("RetailCore", () => {
     it("multi-token with zero amount", async () => {
       const half = amount / 2n;
       await weth.connect(user3).transfer(user1.address, half);
-      const kingAmtBefore = await king.balanceOf(user1);
 
-      await retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]);
 
-      const kingAmt = await king.balanceOf(user1);
-      expect(kingAmt).to.be.gt(kingAmtBefore);
+      const tx = retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]);
+      await expect(tx).to.be.revertedWithCustomError(retail, "InvalidAmount");
 
-      const [limit1, u1] = await retail.getTokenDepositInfo(TOKENS.ALT);
-      const [limit2, u2] = await retail.getTokenDepositInfo(TOKENS.ETHFI);
-      expect(u1).to.equal(half);
-      expect(u2).to.equal(0);
-      expect(limit1).to.equal(LIMITS[TOKENS.ALT]);
-      expect(limit2).to.equal(LIMITS[TOKENS.ETHFI]);
-
-      const [net, ,] = await retail.previewDepositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]);
-      expect(net).to.be.gt(0);
-      expect(net).to.be.eq(kingAmt);
     });
 
     it("2x multi-token deposit but second exceeds limit revert", async () => {
@@ -317,10 +291,25 @@ describe("RetailCore", () => {
       ).to.be.revertedWithCustomError(retail, "DepositLimitExceeded");
     });
 
+    it("reverts on single-token deposit with amount == 0", async () => {
+      await expect(
+        retail.connect(user3).depositMultiple([TOKENS.ALT], [0]),
+      ).to.be.revertedWithCustomError(retail, "InvalidAmount");
+    });
+
+    it("reverts when ANY element in array is zero", async () => {
+      const half = amount / 2n;
+      await weth.connect(user3).transfer(user1.address, half);
+
+      await expect(
+        retail.connect(user1).depositMultiple([TOKENS.ALT, TOKENS.ETHFI], [half, 0]),
+      ).to.be.revertedWithCustomError(retail, "InvalidAmount");
+    });
+
+
     it("token not whitelisted revert while depositing", async () => {
       const half = amount / 2n;
       await weth.connect(user3).transfer(user1.address, half);
-      const kingAmtBefore = await king.balanceOf(user1);
 
       await expect(
         retail.connect(user1).depositMultiple([TOKENS.ALT, admin.address], [half, half]),
@@ -331,6 +320,15 @@ describe("RetailCore", () => {
       await expect(retail.connect(user3).depositMultiple([TOKENS.ALT], [])).to.be.revertedWithCustomError(
         retail,
         "AssetArrayLengthMismatch",
+      );
+    });
+
+    it("tokens too long (>20) revert", async () => {
+      const tokens = Array(21).fill(TOKENS.ALT);
+      const amounts = Array(21).fill(amount);
+      await expect(retail.connect(user3).depositMultiple(tokens, amounts)).to.be.revertedWithCustomError(
+        retail,
+        "TooManyTokens",
       );
     });
 
@@ -420,9 +418,9 @@ describe("RetailCore", () => {
     });
 
     it("epoch duration reset", async () => {
-      const tx = await retail.connect(admin).setEpochDuration(EPOCH_DURATION_S / 2, true);
+      const tx = await retail.connect(admin).setEpochDuration(EPOCH_DURATION_S * 2, true);
       await expect(tx).to.emit(retail, "EpochDurationSet");
-      expect((await retail.getEpochInfo()).duration).to.equal(EPOCH_DURATION_S / 2);
+      expect((await retail.getEpochInfo()).duration).to.equal(EPOCH_DURATION_S * 2);
     });
 
     it("invalid epoch duration set revert", async () => {
@@ -435,17 +433,17 @@ describe("RetailCore", () => {
     it("set token pause", async () => {
       const tx = await retail.connect(admin).setTokenPause(TOKENS.ALT, true);
       await expect(tx).to.emit(retail, "TokenPauseChanged").withArgs(TOKENS.ALT, true);
-      expect(await retail.isTokenPaused(TOKENS.ALT)).to.equal(true);
+      expect(await retail.tokenPaused(TOKENS.ALT)).to.equal(true);
 
       const tx2 = await retail.connect(admin).setTokenPause(TOKENS.ALT, false);
       await expect(tx2).to.emit(retail, "TokenPauseChanged").withArgs(TOKENS.ALT, false);
-      expect(await retail.isTokenPaused(TOKENS.ALT)).to.equal(false);
+      expect(await retail.tokenPaused(TOKENS.ALT)).to.equal(false);
     });
 
     it("set token pause already in this state revert", async () => {
       const tx = await retail.connect(admin).setTokenPause(TOKENS.ALT, true);
       await expect(tx).to.emit(retail, "TokenPauseChanged").withArgs(TOKENS.ALT, true);
-      expect(await retail.isTokenPaused(TOKENS.ALT)).to.equal(true);
+      expect(await retail.tokenPaused(TOKENS.ALT)).to.equal(true);
 
       await expect(retail.connect(admin).setTokenPause(TOKENS.ALT, true)).to.be.revertedWithCustomError(
         retail,
@@ -473,8 +471,6 @@ describe("RetailCore", () => {
       await expect(retail.connect(user3).unpauseDeposits()).to.be.reverted;
 
       await expect(retail.connect(user3).withdrawFees(1)).to.be.reverted;
-
-      await expect(retail.connect(user3).resetEpoch()).to.be.reverted;
     });
 
     it("set deposit limits asset array length mismatch revert", async () => {
@@ -489,11 +485,66 @@ describe("RetailCore", () => {
         "DepositFeeTooBig",
       );
     });
+
+    it("allows setting fee exactly MAX_FEE_VALUE, but >MAX reverts", async () => {
+      const MAX = await retail.MAX_FEE_VALUE();
+
+      await expect(retail.connect(admin).setDepositFeeBps(MAX)).to.not.be.reverted;
+      expect((await retail.getGlobalConfig()).depositFeeBpsValue).to.equal(MAX);
+      await expect(retail.connect(admin).setDepositFeeBps(MAX + 1n)).to.be.revertedWithCustomError(
+        retail,
+        "DepositFeeTooBig",
+      );
+      await expect(retail.connect(admin).setUnwrapFeeBps(MAX)).to.not.be.reverted;
+      expect((await retail.getGlobalConfig()).unwrapFeeBpsValue).to.equal(MAX);
+      await expect(retail.connect(admin).setUnwrapFeeBps(MAX + 1n)).to.be.revertedWithCustomError(
+        retail,
+        "UnwrapFeeTooBig",
+      );
+    });
+
+    it("epochDuration < 1 hour or > 30 days reverts", async () => {
+      const ONE_HOUR = 60 * 60;
+      const THIRTY_DAYS = 30 * 24 * 60 * 60;
+      await expect(
+        retail.connect(admin).setEpochDuration(ONE_HOUR - 1, false),
+      ).to.be.revertedWithCustomError(retail, "InvalidEpochDuration");
+
+      await expect(
+        retail.connect(admin).setEpochDuration(THIRTY_DAYS + 1, false),
+      ).to.be.revertedWithCustomError(retail, "InvalidEpochDuration");
+    });
+
+
+
+    it("allows a very small (dust) deposit that still mints >0 KING", async () => {
+      const tiny = 1n;
+      const preview = await retail.previewDepositMultiple([TOKENS.ALT], [tiny]);
+      if (preview.kingToReceiveNet > 0n) {
+        await weth.connect(user3).transfer(user2, tiny);
+        await weth.connect(user2).approve(retail.target, MaxUint256);
+        await expect(retail.connect(user2).depositMultiple([TOKENS.ALT], [tiny])).to.not.be
+          .reverted;
+      }
+    });
+
+    it("reverts with DepositTooSmall when King mints zero", async () => {
+      let amt = 1n;
+      for (let i = 0; i < 32; i++) {
+        const p = await retail.previewDepositMultiple([TOKENS.ALT], [amt]);
+        if (p.kingToReceiveNet === 0n) {
+          await weth.connect(user3).transfer(user2, amt);
+          await weth.connect(user2).approve(retail.target, MaxUint256);
+          await expect(
+            retail.connect(user2).depositMultiple([TOKENS.ALT], [amt]),
+          ).to.be.revertedWithCustomError(retail, "DepositTooSmall");
+          return;
+        }
+        amt = amt * 2n;
+      }
+    });
   });
 
-  /*************************************************
-   *                  GETTERS                      *
-   *************************************************/
   describe("Getters", () => {
     it("global config", async () => {
       const cfg = await retail.getGlobalConfig();
@@ -537,7 +588,7 @@ describe("RetailCore", () => {
       expect(res2.kingFeeAmount).to.be.equal(0);
     });
 
-    it("get all info", async () => { 
+    it("get all info", async () => {
       const res = await retail.getAllInfo();
       expect(res.kingContractAddress).to.equal(KING_ADDRESS);
       expect(res.depositFeeBpsValue).to.equal(DEPOSIT_FEE_BPS);
@@ -601,7 +652,6 @@ describe("RetailCore", () => {
       const amount = parseEther("1");
       const res = await retail.tokenAmountToUsd(TOKENS.EIGEN, amount);
       expect(res).to.be.not.equal(0);
-      console.log(res);
 
       const res0 = await retail.tokenAmountToUsd(TOKENS.SWELL, 0);
       expect(res0).to.be.eq(0);
@@ -609,28 +659,6 @@ describe("RetailCore", () => {
       const usdcAmount = parseUnits("1", 6);
       await expect(retail.tokenAmountToUsd(USDC, usdcAmount)).to.be.reverted; //because in king's oracle it's not in token config
     });
-
-    it("update price provider", async () => {
-      const priceProvider = await retail.priceProvider();
-      await expect(retail.connect(admin).updatePriceProvider()).to.be.revertedWithCustomError(retail, "AlreadyInThisState");
-      expect(priceProvider).to.be.eq(await retail.priceProvider());
-
-      await expect(retail.forceUpdatePriceProvider(king.target)).to.emit(retail, "PriceProviderUpdated").withArgs(king.target); //set random address
-      expect(await retail.priceProvider()).to.be.eq(king.target);
-
-      await expect(retail.forceUpdatePriceProvider(king.target)).to.be.revertedWithCustomError(
-        retail,
-        "AlreadyInThisState",
-      );
-
-      await expect(retail.connect(admin).forceUpdatePriceProvider(ZeroAddress)).to.be.revertedWithCustomError(
-        retail,
-        "ZeroAddress",
-      );
-
-      await expect(retail.connect(user3).forceUpdatePriceProvider(king.target)).to.be.reverted;
-      await expect(retail.connect(user3).updatePriceProvider()).to.be.reverted;
-    })
   });
 
   /*************************************************
@@ -706,11 +734,11 @@ describe("RetailCore", () => {
     });
 
     it("multi-epoch rollover", async () => {
-      await retail.connect(admin).setEpochDuration(5, true); // 5-second epochs
+      await retail.connect(admin).setEpochDuration(3600, true);
       await time.increase(EPOCH_DURATION_S + 1); //because in update -> block.timestamp >= nextEpochTimestamp
 
       for (let i = 0; i < 3; i++) {
-        await time.increase(7);
+        await time.increase(3601);
         await retail.connect(user3).depositMultiple([TOKENS.ALT], [parseEther("0.0001")]);
 
         const [, used] = await retail.getTokenDepositInfo(TOKENS.ALT);
@@ -770,7 +798,7 @@ describe("RetailCore", () => {
 
     it("contract life-cycle", async () => {
       /* make epochs short for test speed */
-      await retail.connect(admin).setEpochDuration(5, true);
+      await retail.connect(admin).setEpochDuration(3600, true);
       await time.increase(EPOCH_DURATION_S + 1); // because in update -> block.timestamp >= nextEpochTimestamp
 
       /* ---------- 1. user1 deposits ETHFI ----------------------------------- */
@@ -786,7 +814,7 @@ describe("RetailCore", () => {
       expect(await eigen.balanceOf(user2)).to.equal(u2EigenBefore - eigenAmt);
 
       /* ---------- 3. epoch rollover (auto-reset on first tx after jump) ----- */
-      await time.increase(7);
+      await time.increase(3601);
       await retail.connect(user3).depositMultiple([TOKENS.ALT], [parseEther("0.01")]);
       const [, usedEthfiAfterReset] = await retail.getTokenDepositInfo(TOKENS.ETHFI);
       expect(usedEthfiAfterReset).to.equal(0); // previous usage cleared
@@ -823,7 +851,7 @@ describe("RetailCore", () => {
         [halfLimit, 0n], // second token zero-amount
       );
 
-      await retail.connect(user1).depositMultiple([TOKENS.SWELL, TOKENS.ETHFI], [halfLimit, 0n]);
+      await retail.connect(user1).depositMultiple([TOKENS.SWELL, TOKENS.ETHFI], [halfLimit, 1n]);
 
       expect((await king.balanceOf(user1)) - kingBeforeMD).to.equal(netPrev);
 
